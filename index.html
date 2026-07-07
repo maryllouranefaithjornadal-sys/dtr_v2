@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DTR Calculator - Daily Time Record</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- PDF.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>DTR Calculator</h1>
+            <p class="subtitle">Daily Time Record Calculator for Faculty</p>
+        </header>
+
+        <main class="main-content">
+            <!-- Section 1: Schedule Configuration -->
+            <section class="section schedule-section">
+                <div class="section-header">
+                    <h2>Step 1: Faculty & Schedule</h2>
+                    <p class="section-desc">Select an existing faculty or create a new schedule</p>
+                </div>
+
+                <!-- Faculty Selection -->
+                <div class="faculty-selector">
+                    <div class="faculty-options">
+                        <div class="selector-group">
+                            <label for="facultyDropdown" class="label-primary">Select Existing Faculty</label>
+                            <div class="dropdown-wrapper">
+                                <select id="facultyDropdown" class="input-field">
+                                    <option value="">-- Choose Faculty --</option>
+                                </select>
+                                <button type="button" class="btn btn-outline btn-sm" id="deleteFacultyBtn" style="display: none;">Delete</button>
+                            </div>
+                        </div>
+
+                        <div class="divider">
+                            <span>or</span>
+                        </div>
+
+                        <div class="selector-group">
+                            <label for="facultyName" class="label-primary">Create New Faculty</label>
+                            <input type="text" id="facultyName" placeholder="Enter faculty name" class="input-field">
+                        </div>
+                    </div>
+                </div>
+
+                <form id="scheduleForm" class="schedule-form">
+                    <div class="form-section">
+                        <h3 class="form-title">Teaching Schedule</h3>
+                        
+                        <div class="schedule-grid">
+                            <div class="schedule-day">
+                                <label for="monSchedule">Monday</label>
+                                <input type="text" id="monSchedule" name="monday" placeholder="e.g., 07:30am-12:00pm, 01:00pm-02:30pm" class="input-field">
+                            </div>
+                            <div class="schedule-day">
+                                <label for="tueSchedule">Tuesday</label>
+                                <input type="text" id="tueSchedule" name="tuesday" placeholder="e.g., 07:30am-12:00pm, 01:00pm-04:00pm" class="input-field">
+                            </div>
+                            <div class="schedule-day">
+                                <label for="wedSchedule">Wednesday</label>
+                                <input type="text" id="wedSchedule" name="wednesday" placeholder="e.g., 07:30am-12:00pm" class="input-field">
+                            </div>
+                            <div class="schedule-day">
+                                <label for="thuSchedule">Thursday</label>
+                                <input type="text" id="thuSchedule" name="thursday" placeholder="e.g., 07:30am-12:00pm, 01:00pm-02:30pm" class="input-field">
+                            </div>
+                            <div class="schedule-day">
+                                <label for="friSchedule">Friday</label>
+                                <input type="text" id="friSchedule" name="friday" placeholder="e.g., 07:30am-12:00pm" class="input-field">
+                            </div>
+                            <div class="schedule-day">
+                                <label for="satSchedule">Saturday</label>
+                                <input type="text" id="satSchedule" name="saturday" placeholder="e.g., 08:00am-12:00pm" class="input-field">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary" id="saveFacultyBtn">Save Schedule</button>
+                        <button type="button" class="btn btn-outline" id="clearFormBtn">Clear</button>
+                    </div>
+                </form>
+                <br>
+                <div id="scheduleDisplay" class="schedule-display hidden">
+                    <h3>Saved Schedule for <span id="selectedFacultyName"></span></h3>
+                    <div id="scheduleList" class="schedule-list"></div>
+                    <button type="button" class="btn btn-secondary btn-sm" id="editScheduleBtn" style="margin-top: 16px;">Edit Schedule</button>
+                </div>
+            </section>
+
+            <!-- Section 2: File Upload -->
+            <section class="section upload-section">
+                <div class="section-header">
+                    <h2>Step 2: Upload DTR PDF</h2>
+                    <p class="section-desc">Select your Daily Time Record (Civil Service Form No. 48)</p>
+                </div>
+
+                <div class="upload-area" id="uploadArea">
+                    <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2v20m10-10H2"></path>
+                    </svg>
+                    <h3>Click or Drag PDF Here</h3>
+                    <p>Support for Civil Service Form No. 48</p>
+                    <input type="file" id="pdfInput" accept=".pdf" hidden>
+                </div>
+
+                <div id="uploadStatus" class="upload-status hidden">
+                    <div class="status-content">
+                        <span id="statusMessage"></span>
+                        <div class="spinner"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 3: Results -->
+            <section class="section results-section">
+                <div class="section-header">
+                    <h2>Step 3: Review Results</h2>
+                    <p class="section-desc">Calculated hours based on your schedule</p>
+                </div>
+
+                <div id="resultsContainer" class="results-container hidden">
+                    <div id="employeeInfo" class="employee-info"></div>
+
+                    <div class="table-wrapper">
+                        <table id="resultsTable" class="results-table">
+                            <thead>
+                                <tr>
+                                    <th>Day</th>
+                                    <th>Date</th>
+                                    <th>AM Actual (IN-OUT)</th>
+                                    <th>PM Actual (IN-OUT)</th>
+                                    <th>Validated Hours</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody id="resultsBody">
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="results-summary">
+                        <div class="summary-item">
+                            <span>Total Working Days:</span>
+                            <strong id="totalDays">0</strong>
+                        </div>
+                        <div class="summary-item">
+                            <span>Total Validated Hours:</span>
+                            <strong id="totalHours">0.00</strong>
+                        </div>
+                    </div>
+
+                    <div class="action-buttons">
+                        <button class="btn btn-secondary" onclick="resetCalculator()">Reset</button>
+                    </div>
+                </div>
+
+                <div id="noResults" class="no-results">
+                    <p>Upload a PDF to see results</p>
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>&copy; 2026 DTR Calculator_Mary Llourane Faith Jornadal.</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
