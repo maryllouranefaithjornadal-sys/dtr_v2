@@ -1,8 +1,8 @@
 // Set up PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-// Faculty Storage Keys
-const FACULTY_STORAGE_KEY = 'dtrCalculator_faculties';
+// API Endpoints
+const FACULTY_API_ENDPOINT = '/api/faculties';
 
 // State Management
 const state = {
@@ -26,11 +26,11 @@ const editScheduleBtn = document.getElementById('editScheduleBtn');
 const scheduleDisplay = document.getElementById('scheduleDisplay');
 
 // Event Listeners
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     setupUploadListeners();
     setupScheduleForm();
     setupFacultyManagement();
-    loadFacultyList();
+    await loadFacultyList();
 });
 
 function setupUploadListeners() {
@@ -70,19 +70,24 @@ function setupFacultyManagement() {
     editScheduleBtn.addEventListener('click', editSchedule);
 }
 
-function loadFacultyList() {
-    const faculties = getFacultiesFromStorage();
-    facultyDropdown.innerHTML = '<option value="">-- Select Existing Faculty --</option>';
-    
-    faculties.forEach(faculty => {
-        const option = document.createElement('option');
-        option.value = faculty.name;
-        option.textContent = faculty.name;
-        facultyDropdown.appendChild(option);
-    });
+async function loadFacultyList() {
+    try {
+        const faculties = await getFacultiesFromServer();
+        facultyDropdown.innerHTML = '<option value="">-- Select Existing Faculty --</option>';
+        
+        faculties.forEach(faculty => {
+            const option = document.createElement('option');
+            option.value = faculty.name;
+            option.textContent = faculty.name;
+            facultyDropdown.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Error loading faculty list:', error);
+        showMessage('Unable to load faculty list from server.', 'error');
+    }
 }
 
-function handleFacultySelect(e) {
+async function handleFacultySelect(e) {
     const selectedName = e.target.value;
     
     if (!selectedName) {
@@ -96,17 +101,21 @@ function handleFacultySelect(e) {
         return;
     }
 
-    // Load selected faculty's schedule
-    const faculties = getFacultiesFromStorage();
-    const faculty = faculties.find(f => f.name === selectedName);
-    
-    if (faculty) {
-        state.currentFaculty = faculty.name;
-        state.schedule = faculty.schedule;
-        facultyNameInput.value = '';
-        loadScheduleIntoForm(faculty.schedule);
-        displaySchedule(faculty.name, faculty.schedule);
-        deleteFacultyBtn.style.display = 'inline-block';
+    try {
+        const faculties = await getFacultiesFromServer();
+        const faculty = faculties.find(f => f.name === selectedName);
+        
+        if (faculty) {
+            state.currentFaculty = faculty.name;
+            state.schedule = faculty.schedule;
+            facultyNameInput.value = '';
+            loadScheduleIntoForm(faculty.schedule);
+            displaySchedule(faculty.name, faculty.schedule);
+            deleteFacultyBtn.style.display = 'inline-block';
+        }
+    } catch (error) {
+        console.error('Error loading faculty:', error);
+        showMessage('Unable to load faculty list from server.', 'error');
     }
 }
 
@@ -127,7 +136,7 @@ function setupScheduleForm() {
     });
 }
 
-function saveFacultySchedule() {
+async function saveFacultySchedule() {
     const facultyName = facultyNameInput.value.trim();
     const selectedFromDropdown = facultyDropdown.value;
     const nameToUse = selectedFromDropdown || facultyName;
@@ -153,18 +162,22 @@ function saveFacultySchedule() {
         return;
     }
 
-    // Save or update faculty
-    saveFacultyToStorage(nameToUse, schedule);
-    state.schedule = schedule;
-    state.currentFaculty = nameToUse;
+    try {
+        await saveFacultyToServer(nameToUse, schedule);
+        state.schedule = schedule;
+        state.currentFaculty = nameToUse;
 
-    loadFacultyList();
-    facultyDropdown.value = nameToUse;
-    facultyNameInput.value = '';
-    displaySchedule(nameToUse, schedule);
-    deleteFacultyBtn.style.display = 'inline-block';
+        await loadFacultyList();
+        facultyDropdown.value = nameToUse;
+        facultyNameInput.value = '';
+        displaySchedule(nameToUse, schedule);
+        deleteFacultyBtn.style.display = 'inline-block';
 
-    showMessage(`Schedule for ${nameToUse} saved successfully!`, 'success');
+        showMessage(`Schedule for ${nameToUse} saved successfully!`, 'success');
+    } catch (error) {
+        console.error('Error saving schedule:', error);
+        showMessage('Unable to save schedule to server.', 'error');
+    }
 }
 
 function loadScheduleIntoForm(schedule) {
@@ -222,39 +235,57 @@ function clearFormFields() {
     });
 }
 
-function deleteFaculty() {
+async function deleteFaculty() {
     if (!state.currentFaculty) return;
 
     if (!confirm(`Are you sure you want to delete ${state.currentFaculty}'s schedule?`)) {
         return;
     }
 
-    const faculties = getFacultiesFromStorage();
-    const filtered = faculties.filter(f => f.name !== state.currentFaculty);
-    localStorage.setItem(FACULTY_STORAGE_KEY, JSON.stringify(filtered));
-
-    clearForm();
-    loadFacultyList();
-    showMessage(`${state.currentFaculty}'s schedule deleted`, 'success');
+    try {
+        await deleteFacultyFromServer(state.currentFaculty);
+        clearForm();
+        await loadFacultyList();
+        showMessage(`${state.currentFaculty}'s schedule deleted`, 'success');
+    } catch (error) {
+        console.error('Error deleting faculty:', error);
+        showMessage('Unable to delete faculty schedule from server.', 'error');
+    }
 }
 
-// LocalStorage Functions
-function getFacultiesFromStorage() {
-    const data = localStorage.getItem(FACULTY_STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
+// Server API Functions
+async function getFacultiesFromServer() {
+    const response = await fetch(FACULTY_API_ENDPOINT);
+    if (!response.ok) {
+        throw new Error('Failed to fetch faculties');
+    }
+    return response.json();
 }
 
-function saveFacultyToStorage(name, schedule) {
-    let faculties = getFacultiesFromStorage();
-    const existingIndex = faculties.findIndex(f => f.name === name);
+async function saveFacultyToServer(name, schedule) {
+    const response = await fetch(FACULTY_API_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, schedule })
+    });
 
-    if (existingIndex >= 0) {
-        faculties[existingIndex].schedule = schedule;
-    } else {
-        faculties.push({ name, schedule });
+    if (!response.ok) {
+        throw new Error('Failed to save faculty schedule');
     }
 
-    localStorage.setItem(FACULTY_STORAGE_KEY, JSON.stringify(faculties));
+    return response.json();
+}
+
+async function deleteFacultyFromServer(name) {
+    const response = await fetch(`${FACULTY_API_ENDPOINT}/${encodeURIComponent(name)}`, {
+        method: 'DELETE'
+    });
+
+    if (!response.ok) {
+        throw new Error('Failed to delete faculty schedule');
+    }
+
+    return response.json();
 }
 
 // PDF Upload and Processing
