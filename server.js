@@ -1,68 +1,67 @@
 const express = require('express');
 const path = require('path');
-const fs = require('fs');
 const cors = require('cors');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-const DATA_FILE = path.join(__dirname, 'faculty-data.json');
+const PORT = process.env.PORT || 10000;
+
+// Initialize Supabase (These variables will be set in Render)
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname)));
+app.use(express.static(path.join(__dirname, 'public')));
 
-function readFacultyData() {
-  try {
-    if (!fs.existsSync(DATA_FILE)) {
-      return [];
-    }
-    const raw = fs.readFileSync(DATA_FILE, 'utf8');
-    return JSON.parse(raw || '[]');
-  } catch (err) {
-    console.error('Failed to read faculty data', err);
-    return [];
+// GET: Fetch all faculties
+app.get('/api/faculties', async (req, res) => {
+  const { data: faculties, error } = await supabase
+    .from('faculties')
+    .select('name, schedule');
+
+  if (error) {
+    console.error('Error fetching data:', error);
+    return res.status(500).json({ error: 'Database error' });
   }
-}
-
-function writeFacultyData(data) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf8');
-}
-
-app.get('/api/faculties', (req, res) => {
-  const faculties = readFacultyData();
-  res.json(faculties);
+  res.json(faculties || []);
 });
 
-app.post('/api/faculties', (req, res) => {
+// POST: Add or update a faculty
+app.post('/api/faculties', async (req, res) => {
   const { name, schedule } = req.body;
   if (!name || typeof schedule !== 'object') {
     return res.status(400).json({ error: 'Invalid request payload' });
   }
 
-  const faculties = readFacultyData();
-  const existing = faculties.find(f => f.name === name);
+  // Supabase 'upsert' will update the row if the 'name' already exists, or insert a new one if it doesn't
+  const { data, error } = await supabase
+    .from('faculties')
+    .upsert({ name, schedule }, { onConflict: 'name' }) 
+    .select();
 
-  if (existing) {
-    existing.schedule = schedule;
-  } else {
-    faculties.push({ name, schedule });
+  if (error) {
+    console.error('Error saving data:', error);
+    return res.status(500).json({ error: 'Database error' });
   }
-
-  writeFacultyData(faculties);
-  res.json({ success: true, faculties });
+  res.json({ success: true, faculties: data });
 });
 
-app.delete('/api/faculties/:name', (req, res) => {
+// DELETE: Remove a faculty
+app.delete('/api/faculties/:name', async (req, res) => {
   const name = req.params.name;
-  const faculties = readFacultyData();
-  const updated = faculties.filter(f => f.name !== name);
+  
+  const { error } = await supabase
+    .from('faculties')
+    .delete()
+    .eq('name', name);
 
-  if (updated.length === faculties.length) {
-    return res.status(404).json({ error: 'Faculty not found' });
+  if (error) {
+    console.error('Error deleting data:', error);
+    return res.status(500).json({ error: 'Database error' });
   }
-
-  writeFacultyData(updated);
-  res.json({ success: true, faculties: updated });
+  res.json({ success: true });
 });
 
 app.listen(PORT, () => {
