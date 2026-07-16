@@ -13,6 +13,29 @@ const state = {
     currentFaculty: null // Track currently selected/edited faculty
 };
 
+// Hardcoded Schedule Templates
+const HARDCODED_FACULTIES = [
+    {
+        name: "Regular Schedule",
+        schedule: {
+            "Mon": "07:30am-12:30pm, 01:30pm-06:30pm",
+            "Tue": "07:30am-12:30pm, 01:30pm-06:30pm",
+            "Wed": "07:30am-12:30pm, 01:30pm-06:30pm",
+            "Thu": "07:30am-12:30pm, 01:30pm-06:30pm"
+        }
+    }
+    // {
+    //     name: "Template: Full Day",
+    //     schedule: {
+    //         "Mon": "08:00am-12:00pm, 01:00pm-05:00pm",
+    //         "Tue": "08:00am-12:00pm, 01:00pm-05:00pm",
+    //         "Wed": "08:00am-12:00pm, 01:00pm-05:00pm",
+    //         "Thu": "08:00am-12:00pm, 01:00pm-05:00pm",
+    //         "Fri": "08:00am-12:00pm, 01:00pm-05:00pm"
+    //     }
+    // }
+];
+
 // Initialize PDF.js
 const pdfInput = document.getElementById('pdfInput');
 const uploadArea = document.getElementById('uploadArea');
@@ -72,15 +95,35 @@ function setupFacultyManagement() {
 
 async function loadFacultyList() {
     try {
-        const faculties = await getFacultiesFromServer();
+        const serverFaculties = await getFacultiesFromServer();
+        
         facultyDropdown.innerHTML = '<option value="">-- Select Existing Faculty --</option>';
         
-        faculties.forEach(faculty => {
+        // Group for hardcoded templates
+        const templateGroup = document.createElement('optgroup');
+        templateGroup.label = "Hardcoded Templates";
+        
+        HARDCODED_FACULTIES.forEach(faculty => {
             const option = document.createElement('option');
             option.value = faculty.name;
             option.textContent = faculty.name;
-            facultyDropdown.appendChild(option);
+            templateGroup.appendChild(option);
         });
+        facultyDropdown.appendChild(templateGroup);
+
+        // Group for server-saved faculties
+        if (serverFaculties.length > 0) {
+            const customGroup = document.createElement('optgroup');
+            customGroup.label = "Saved Faculties";
+            
+            serverFaculties.forEach(faculty => {
+                const option = document.createElement('option');
+                option.value = faculty.name;
+                option.textContent = faculty.name;
+                customGroup.appendChild(option);
+            });
+            facultyDropdown.appendChild(customGroup);
+        }
     } catch (error) {
         console.error('Error loading faculty list:', error);
         showMessage('Unable to load faculty list from server.', 'error');
@@ -102,8 +145,10 @@ async function handleFacultySelect(e) {
     }
 
     try {
-        const faculties = await getFacultiesFromServer();
-        const faculty = faculties.find(f => f.name === selectedName);
+        const serverFaculties = await getFacultiesFromServer();
+        // Combine both sources to find the selected schedule
+        const allFaculties = [...HARDCODED_FACULTIES, ...serverFaculties];
+        const faculty = allFaculties.find(f => f.name === selectedName);
         
         if (faculty) {
             state.currentFaculty = faculty.name;
@@ -111,7 +156,10 @@ async function handleFacultySelect(e) {
             facultyNameInput.value = '';
             loadScheduleIntoForm(faculty.schedule);
             displaySchedule(faculty.name, faculty.schedule);
-            deleteFacultyBtn.style.display = 'inline-block';
+            
+            // Only show delete button if it's a server-saved schedule, not a hardcoded one
+            const isHardcoded = HARDCODED_FACULTIES.some(f => f.name === faculty.name);
+            deleteFacultyBtn.style.display = isHardcoded ? 'none' : 'inline-block';
         }
     } catch (error) {
         console.error('Error loading faculty:', error);
